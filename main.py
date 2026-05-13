@@ -290,6 +290,7 @@ async def on_message(m):
                 "Keep it very short. "
                 "Don't greet, just react."
                 "Be Harsh About Opinions."
+                "Don't Go Overboard On Insults. "
             )
         )
 
@@ -319,7 +320,7 @@ async def on_ready():
 
             IS_LEADER = True
 
-            await ch.send("YEN ONLINE")
+            await ch.send("hi bitches")
 
         except Exception as e:
             print(f"Startup channel error: {e}")
