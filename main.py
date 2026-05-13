@@ -12,6 +12,7 @@ import logging
 from flask import Flask
 from threading import Thread
 
+# ================= WEB SERVER =================
 app = Flask('')
 
 @app.route('/')
@@ -20,10 +21,16 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(
+        host='0.0.0.0',
+        port=port
+    )
 
 def keep_alive():
-    t = Thread(target=run_web)
+    t = Thread(
+        target=run_web,
+        daemon=True
+    )
     t.start()
 
 # ================= LOGGING =================
@@ -81,6 +88,7 @@ ignore_roles = load(FILES["ignore"])
 
 # ================= COOLDOWN =================
 response_times = {}
+processed_messages = set()
 
 def on_cooldown(uid):
     last = response_times.get(uid, 0)
@@ -106,6 +114,7 @@ def log(g, text):
     gid = str(g.id)
 
     logs.setdefault(gid, [])
+
     logs[gid].append(
         f"{time.strftime('%H:%M:%S')} | {text}"
     )
@@ -150,6 +159,7 @@ def bot_can(target, guild):
 
 # ================= AI =================
 def ask_ai(uid, text, system_override=None):
+
     if not GROQ_KEY:
         return "AI off"
 
@@ -158,7 +168,7 @@ def ask_ai(uid, text, system_override=None):
     system_prompt = (
         system_override
         or
-        "You are Yen. Sarcastic, blunt, casual internet humor. Dry reactions. Short replies. Uses modern slang naturally.Behaves Like an actual discord user. Talks like a chronically online friend. Never mention TikTok, followers, streaming, or being an influencer."
+        "You are Yen. Rude, sarcastic, blunt, TikTok tone. Short replies."
     )
 
     messages = [
@@ -207,6 +217,7 @@ def ask_ai(uid, text, system_override=None):
 # ================= MESSAGE =================
 @bot.event
 async def on_message(m):
+
     global IS_LEADER
 
     if not m:
@@ -218,10 +229,19 @@ async def on_message(m):
     if m.author.bot:
         return
 
-    # Always process commands first
+    # ================= DUPLICATE PROTECTION =================
+    if m.id in processed_messages:
+        return
+
+    processed_messages.add(m.id)
+
+    if len(processed_messages) > 1000:
+        processed_messages.clear()
+
+    # ================= COMMANDS =================
     await bot.process_commands(m)
 
-    # Prevent errors if bot.user is None
+    # Ignore command prefix
     if bot.user and (
         m.content.startswith("yen ")
         or
@@ -236,13 +256,14 @@ async def on_message(m):
     uid = str(m.author.id)
 
     # ================= REPLY TO BOT =================
-    # Triggers when someone replies directly to one of Yen's messages
     if (
         m.reference
         and m.reference.resolved
         and isinstance(m.reference.resolved, discord.Message)
+        and bot.user
         and m.reference.resolved.author.id == bot.user.id
     ):
+
         if on_cooldown(m.author.id):
             return
 
@@ -316,7 +337,12 @@ async def on_message(m):
             uid,
             m.content,
             system_override=(
-            "You are Yen. You randomly joined a conversation. React naturally with dry humor and blunt opinions. Keep replies short. Use casual modern slang naturally. Never act like an influencer or content creator. Never mention TikTok, followers, livestreams, edits, or social media fame."
+                "You are Yen. "
+                "You randomly jumped into a conversation. "
+                "React naturally, sarcastic, blunt, TikTok tone. "
+                "Keep it short. "
+                "Don't greet. "
+                "Be harsh about opinions but don't overdo insults."
             )
         )
 
@@ -333,6 +359,7 @@ async def on_message(m):
 # ================= READY =================
 @bot.event
 async def on_ready():
+
     global IS_LEADER
 
     print(f"Logged in as {bot.user}")
