@@ -235,6 +235,39 @@ async def on_message(m):
     msg = norm(m.content.lower())
     uid = str(m.author.id)
 
+    # ================= REPLY TO BOT =================
+    # Triggers when someone replies directly to one of Yen's messages
+    if (
+        m.reference
+        and m.reference.resolved
+        and isinstance(m.reference.resolved, discord.Message)
+        and m.reference.resolved.author.id == bot.user.id
+    ):
+        if on_cooldown(m.author.id):
+            return
+
+        mark_responded(m.author.id)
+
+        memory.setdefault(uid, [])
+        memory[uid].append(m.content)
+        memory[uid] = memory[uid][-6:]
+
+        save(FILES["memory"], memory)
+
+        reply = ask_ai(uid, m.content)
+
+        log(m.guild, f"REPLY AI {m.author}")
+
+        try:
+            await m.reply(
+                reply,
+                allowed_mentions=SAFE
+            )
+        except Exception as e:
+            print(f"Reply error: {e}")
+
+        return
+
     # ================= DIRECT AI TRIGGER =================
     if msg.startswith("hey yen"):
 
@@ -266,7 +299,6 @@ async def on_message(m):
     # ================= RANDOM REPLY =================
     words = m.content.strip().split()
 
-    # Lowered from 10% to 3%
     if len(words) >= 4 and random.random() < 0.03:
 
         if on_cooldown(m.author.id):
@@ -320,7 +352,7 @@ async def on_ready():
 
             IS_LEADER = True
 
-            await ch.send("hi bitches")
+            await ch.send("sup")
 
         except Exception as e:
             print(f"Startup channel error: {e}")
