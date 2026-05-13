@@ -1,1 +1,230 @@
-code
+import discord
+from discord.ext import commands
+import os, json, time, asyncio, requests, unicodedata, random
+
+# ================= CONFIG =================
+TOKEN = os.getenv("TOKEN")
+GROQ_KEY = os.getenv("GROQ_KEY")
+
+if not TOKEN:
+    raise ValueError("Missing TOKEN")
+
+intents = discord.Intents.all()
+
+bot = commands.Bot(
+    command_prefix=commands.when_mentioned_or("yen "),
+    intents=intents
+)
+
+SAFE = discord.AllowedMentions(everyone=False, roles=False, users=True)
+
+CREATOR_ID = 1383111113016872980
+LOCK_CHANNEL_ID = 1446191246828634223
+
+IS_LEADER = False
+
+FILES = {
+    "memory": "memory.json",
+    "logs": "logs.json",
+    "ignore": "ignore_roles.json"
+}
+
+def load(f):
+    try: return json.load(open(f))
+    except: return {}
+
+def save(f, d):
+    try: json.dump(d, open(f, "w"), indent=2)
+    except: pass
+
+memory = load(FILES["memory"])
+logs = load(FILES["logs"])
+ignore_roles = load(FILES["ignore"])
+
+# ================= COOLDOWN (ANTI DOUBLE RESPONSE) =================
+# Tracks the last time Yen responded to each user (by user ID)
+# Prevents responding again within 3 seconds of a previous reply
+response_times = {}
+
+def on_cooldown(uid):
+    last = response_times.get(uid, 0)
+    return (time.time() - last) < 3
+
+def mark_responded(uid):
+    response_times[uid] = time.time()
+
+# ================= UTIL =================
+def norm(t):
+    return unicodedata.normalize("NFKD", t).encode("ascii","ignore").decode()
+
+def log(g, text):
+    if not g: return
+    gid = str(g.id)
+    logs.setdefault(gid, [])
+    logs[gid].append(f"{time.strftime('%H:%M:%S')} | {text}")
+    logs[gid] = logs[gid][-20:]
+    save(FILES["logs"], logs)
+
+# ================= ROLE LOGIC =================
+def top_role_filtered(member):
+    ignored = ignore_roles.get(str(member.guild.id))
+    roles = sorted(member.roles, key=lambda r: r.position, reverse=True)
+    for r in roles:
+        if str(r.id) != ignored:
+            return r
+    return roles[0] if roles else None
+
+def can_act(actor, target):
+    if actor.id == CREATOR_ID:
+        return True
+    ar = top_role_filtered(actor)
+    tr = top_role_filtered(target)
+    if not ar or not tr:
+        return False
+    return ar.position > tr.position
+
+def bot_can(target, guild):
+    return guild.me.top_role > target.top_role
+
+# ================= AI =================
+def ask_ai(uid, text, system_override=None):
+    if not GROQ_KEY:
+        return "AI off"
+
+    history = memory.get(str(uid), [])[-3:]
+
+    system_prompt = system_override or "You are Yen. Sarcastic, blunt, TikTok tone. Short replies."
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if history:
+        messages.append({"role": "user", "content": " | ".join(history)})
+
+    messages.append({"role": "user", "content": text})
+
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_KEY}"},
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": messages,
+                "max_tokens": 50
+            },
+            timeout=10
+        )
+
+        if r.status_code != 200:
+            return f"AI {r.status_code}"
+
+        return r.json()["choices"][0]["message"]["content"]
+
+    except:
+        return "AI died 💀"
+
+# ================= MESSAGE =================
+@bot.event
+async def on_message(m):
+    if not m or not m.guild or m.author.bot:
+        return
+
+    # Always process commands first
+    await bot.process_commands(m)
+
+    # Stop if it's a command
+    if m.content.startswith("yen ") or m.content.startswith(f"<@{bot.user.id}>"):
+        return
+
+    if not IS_LEADER:
+        return
+
+    msg = norm(m.content.lower())
+    uid = str(m.author.id)
+
+    # ── "hey yen" direct trigger ──
+    if msg.startswith("hey yen"):
+        if on_cooldown(m.author.id):
+            return
+
+        mark_responded(m.author.id)
+        memory.setdefault(uid, []).append(m.content)
+        memory[uid] = memory[uid][-6:]
+        save(FILES["memory"], memory)
+
+        reply = ask_ai(uid, m.content)
+        log(m.guild, f"AI {m.author}")
+        await m.reply(reply, allowed_mentions=SAFE)
+        return
+
+    # ── Random chime-in (~10% chance on normal messages) ──
+    # Skips short messages (under 4 words) to avoid reacting to noise
+    words = m.content.strip().split()
+    if len(words) >= 4 and random.random() < 0.10:
+        if on_cooldown(m.author.id):
+            return
+
+        mark_responded(m.author.id)
+        memory.setdefault(uid, []).append(m.content)
+        memory[uid] = memory[uid][-6:]
+        save(FILES["memory"], memory)
+
+        # Slightly different prompt so random replies feel more natural/reactive
+        reply = ask_ai(
+            uid,
+            m.content,
+            system_override=(
+                "You are Yen. You randomly jumped into a conversation. "
+                "React naturally, sarcastic, blunt, TikTok tone. Keep it very short (1-2 sentences max). "
+                "Don't greet, just react."
+            )
+        )
+        log(m.guild, f"RANDOM AI {m.author}")
+        await m.reply(reply, allowed_mentions=SAFE)
+
+# ================= READY =================
+@bot.event
+async def on_ready():
+    global IS_LEADER
+    print(f"Logged in as {bot.user}")
+
+    ch = bot.get_channel(LOCK_CHANNEL_ID)
+
+    if ch:
+        await ch.send("BOOTING...")
+        await asyncio.sleep(1)
+        IS_LEADER = True
+        await ch.send("YEN ONLINE")
+
+# ================= COMMANDS =================
+@bot.command()
+async def ignore(ctx, role: discord.Role):
+    if ctx.author.id != CREATOR_ID:
+        return await ctx.send("no")
+
+    ignore_roles[str(ctx.guild.id)] = str(role.id)
+    save(FILES["ignore"], ignore_roles)
+    await ctx.send(f"ignored {role.name}")
+
+@bot.command()
+async def unignore(ctx):
+    if ctx.author.id != CREATOR_ID:
+        return await ctx.send("no")
+
+    ignore_roles.pop(str(ctx.guild.id), None)
+    save(FILES["ignore"], ignore_roles)
+    await ctx.send("ignore cleared")
+
+@bot.command()
+async def say(ctx, *, text):
+    await ctx.send(text)
+
+@bot.command()
+async def purge(ctx, amount: int):
+    if not ctx.author.guild_permissions.manage_messages:
+        return await ctx.send("no perms")
+
+    await ctx.channel.purge(limit=amount + 1)
+
+# ================= RUN =================
+bot.run(TOKEN)
+
