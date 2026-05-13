@@ -322,7 +322,7 @@ async def on_message(m):
                 "Keep it very short. "
                 "Don't greet, just react."
                 "Be Harsh About Opinions."
-                "Don't Go Overboard On Insults. "
+                "Try not using capital words. "
             )
         )
 
