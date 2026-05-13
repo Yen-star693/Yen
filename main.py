@@ -158,7 +158,7 @@ def ask_ai(uid, text, system_override=None):
     system_prompt = (
         system_override
         or
-        "You are Yen. Sarcastic, blunt, TikTok tone. Short replies."
+        "You are Yen. Rude, Sarcastic, blunt, TikTok tone. Short replies."
     )
 
     messages = [
@@ -289,6 +289,7 @@ async def on_message(m):
                 "React naturally, sarcastic, blunt, TikTok tone. "
                 "Keep it very short. "
                 "Don't greet, just react."
+                "Be Harsh About Opinions."
             )
         )
 
