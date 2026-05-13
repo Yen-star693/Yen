@@ -9,6 +9,23 @@ import unicodedata
 import random
 import logging
 
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Yen bot is alive!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
+
 # ================= LOGGING =================
 logging.basicConfig(level=logging.INFO)
 
@@ -349,4 +366,5 @@ async def purge(ctx, amount: int):
 
 # ================= RUN =================
 if __name__ == "__main__":
+    keep_alive()
     bot.run(TOKEN)
