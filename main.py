@@ -204,6 +204,10 @@ def ask_ai(uid, text, system_override=None):
         print(f"AI error: {e}")
         return "AI died 💀"
 
+# ================= EXTRA STORAGE =================
+sniped_messages = {}
+sticky_messages = {}
+
 # ================= MESSAGE =================
 @bot.event
 async def on_message(m):
@@ -225,6 +229,44 @@ async def on_message(m):
 
     if ctx.valid:
         return
+
+    # ================= STICKY UPDATE =================
+    data = sticky_messages.get(m.channel.id)
+
+    if data:
+
+        try:
+            old_msg = await m.channel.fetch_message(
+                data["sticky_message_id"]
+            )
+
+            await old_msg.delete()
+
+        except:
+            pass
+
+        embed = discord.Embed(
+            description=data["content"] or "*no text*",
+            color=discord.Color.orange()
+        )
+
+        member = m.guild.get_member(data["author_id"])
+
+        if member:
+            embed.set_author(
+                name=str(member),
+                icon_url=member.display_avatar.url
+            )
+
+        embed.set_footer(
+            text="📌 Sticky Message"
+        )
+
+        new_msg = await m.channel.send(
+            embed=embed
+        )
+
+        data["sticky_message_id"] = new_msg.id
 
     if not IS_LEADER:
         return
@@ -384,7 +426,6 @@ async def unignore(ctx):
 
 @bot.command()
 async def say(ctx, *, text):
-
     await ctx.send(text)
 
 @bot.command()
@@ -394,10 +435,8 @@ async def purge(ctx, amount: int):
         return await ctx.send("no perms")
 
     await ctx.channel.purge(limit=amount + 1)
-# ================= EXTRA COMMANDS =================
 
-sniped_messages = {}
-
+# ================= SNIPE =================
 @bot.event
 async def on_message_delete(message):
 
@@ -421,6 +460,7 @@ async def snipe(ctx):
         f"**{data['author']}** said:\n{data['content']}"
     )
 
+# ================= URBAN =================
 @bot.command()
 async def urban(ctx, *, term):
 
@@ -446,6 +486,7 @@ async def urban(ctx, *, term):
         print(e)
         await ctx.send("urban died 💀")
 
+# ================= TRANSLATE =================
 @bot.command()
 async def translate(ctx, lang, *, text):
 
@@ -479,6 +520,7 @@ async def translate(ctx, lang, *, text):
 
     await ctx.send(translated)
 
+# ================= REMIND =================
 @bot.command()
 async def remind(ctx, seconds: int, *, reminder):
 
@@ -499,6 +541,111 @@ async def remind(ctx, seconds: int, *, reminder):
         await ctx.send(
             f"{ctx.author.mention} Reminder: {reminder}"
         )
+
+# ================= STICKY =================
+@bot.command()
+async def sticky(ctx, arg=None):
+
+    if arg != "this":
+        return await ctx.send(
+            "reply to a message with: yen sticky this"
+        )
+
+    if not ctx.message.reference:
+        return await ctx.send(
+            "reply to a message first"
+        )
+
+    try:
+        replied = await ctx.channel.fetch_message(
+            ctx.message.reference.message_id
+        )
+
+    except:
+        return await ctx.send(
+            "couldn't find message"
+        )
+
+    old = sticky_messages.get(ctx.channel.id)
+
+    if old:
+
+        try:
+            old_msg = await ctx.channel.fetch_message(
+                old["sticky_message_id"]
+            )
+
+            await old_msg.delete()
+
+        except:
+            pass
+
+    embed = discord.Embed(
+        description=replied.content or "*no text*",
+        color=discord.Color.orange()
+    )
+
+    embed.set_author(
+        name=str(replied.author),
+        icon_url=replied.author.display_avatar.url
+    )
+
+    if replied.embeds:
+
+        first = replied.embeds[0]
+
+        if first.title:
+            embed.add_field(
+                name="Embed Title",
+                value=first.title,
+                inline=False
+            )
+
+        if first.description:
+            embed.add_field(
+                name="Embed Description",
+                value=first.description[:1000],
+                inline=False
+            )
+
+    embed.set_footer(
+        text="📌 Sticky Message"
+    )
+
+    sent = await ctx.send(embed=embed)
+
+    sticky_messages[ctx.channel.id] = {
+        "content": replied.content,
+        "author_id": replied.author.id,
+        "sticky_message_id": sent.id
+    }
+
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+@bot.command()
+async def unsticky(ctx):
+
+    data = sticky_messages.get(ctx.channel.id)
+
+    if not data:
+        return await ctx.send("no sticky here")
+
+    try:
+        msg = await ctx.channel.fetch_message(
+            data["sticky_message_id"]
+        )
+
+        await msg.delete()
+
+    except:
+        pass
+
+    sticky_messages.pop(ctx.channel.id, None)
+
+    await ctx.send("sticky removed")
 
 # ================= RUN =================
 if __name__ == "__main__":
