@@ -207,6 +207,7 @@ def ask_ai(uid, text, system_override=None):
 # ================= MESSAGE =================
 @bot.event
 async def on_message(m):
+
     global IS_LEADER
 
     if not m:
@@ -218,13 +219,12 @@ async def on_message(m):
     if m.author.bot:
         return
 
-    # Always process commands first
     await bot.process_commands(m)
 
     ctx = await bot.get_context(m)
 
-if ctx.valid:
-    return
+    if ctx.valid:
+        return
 
     if not IS_LEADER:
         return
@@ -233,13 +233,14 @@ if ctx.valid:
     uid = str(m.author.id)
 
     # ================= REPLY TO BOT =================
-    # Triggers when someone replies directly to one of Yen's messages
     if (
         m.reference
         and m.reference.resolved
         and isinstance(m.reference.resolved, discord.Message)
+        and bot.user
         and m.reference.resolved.author.id == bot.user.id
     ):
+
         if on_cooldown(m.author.id):
             return
 
@@ -265,7 +266,7 @@ if ctx.valid:
 
         return
 
-    # ================= DIRECT AI TRIGGER =================
+    # ================= DIRECT TRIGGER =================
     if msg.startswith("hey yen"):
 
         if on_cooldown(m.author.id):
@@ -316,10 +317,9 @@ if ctx.valid:
                 "You are Yen. "
                 "You randomly jumped into a conversation. "
                 "React naturally, sarcastic, blunt, TikTok tone. "
-                "Keep it very short. "
-                "Don't greet, just react."
-                "Be Harsh About Opinions."
-                "Don't Go Overboard On Insults. "
+                "Keep it short. "
+                "Don't greet. "
+                "Be harsh about opinions but don't overdo insults."
             )
         )
 
