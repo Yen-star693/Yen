@@ -394,6 +394,111 @@ async def purge(ctx, amount: int):
         return await ctx.send("no perms")
 
     await ctx.channel.purge(limit=amount + 1)
+# ================= EXTRA COMMANDS =================
+
+sniped_messages = {}
+
+@bot.event
+async def on_message_delete(message):
+
+    if message.author.bot:
+        return
+
+    sniped_messages[message.channel.id] = {
+        "content": message.content,
+        "author": str(message.author)
+    }
+
+@bot.command()
+async def snipe(ctx):
+
+    data = sniped_messages.get(ctx.channel.id)
+
+    if not data:
+        return await ctx.send("nothing to snipe")
+
+    await ctx.send(
+        f"**{data['author']}** said:\n{data['content']}"
+    )
+
+@bot.command()
+async def urban(ctx, *, term):
+
+    try:
+        r = requests.get(
+            "https://api.urbandictionary.com/v0/define",
+            params={"term": term},
+            timeout=10
+        )
+
+        data = r.json()
+
+        if not data["list"]:
+            return await ctx.send("no definition found")
+
+        definition = data["list"][0]["definition"][:1500]
+
+        await ctx.send(
+            f"**{term}**:\n{definition}"
+        )
+
+    except Exception as e:
+        print(e)
+        await ctx.send("urban died 💀")
+
+@bot.command()
+async def translate(ctx, lang, *, text):
+
+    languages = {
+        "english": "English",
+        "japanese": "Japanese",
+        "french": "French",
+        "spanish": "Spanish",
+        "german": "German",
+        "korean": "Korean",
+        "hindi": "Hindi"
+    }
+
+    target = languages.get(lang.lower())
+
+    if not target:
+        return await ctx.send("unknown language")
+
+    prompt = (
+        f"Translate this into {target}: {text}"
+    )
+
+    translated = ask_ai(
+        ctx.author.id,
+        prompt,
+        system_override=(
+            "You are a translator. "
+            "Only translate the text."
+        )
+    )
+
+    await ctx.send(translated)
+
+@bot.command()
+async def remind(ctx, seconds: int, *, reminder):
+
+    if seconds > 86400:
+        return await ctx.send("too long")
+
+    await ctx.send(
+        f"ok i'll remind you in {seconds} seconds"
+    )
+
+    await asyncio.sleep(seconds)
+
+    try:
+        await ctx.author.send(
+            f"Reminder: {reminder}"
+        )
+    except:
+        await ctx.send(
+            f"{ctx.author.mention} Reminder: {reminder}"
+        )
 
 # ================= RUN =================
 if __name__ == "__main__":
