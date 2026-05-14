@@ -8,6 +8,8 @@ import requests
 import unicodedata
 import random
 import logging
+import uuid
+import threading
 
 from flask import Flask
 from threading import Thread
@@ -53,6 +55,33 @@ CREATOR_ID = 1383111113016872980
 LOCK_CHANNEL_ID = 1446191246828634223
 
 IS_LEADER = False
+
+# ================= INSTANCE LOCK (NEW FIX) =================
+INSTANCE_ID = str(uuid.uuid4())
+IS_ACTIVE_INSTANCE = False
+
+def instance_guard():
+    global IS_ACTIVE_INSTANCE
+
+    lock_file = "bot.lock"
+
+    try:
+        if os.path.exists(lock_file):
+            with open(lock_file, "r") as f:
+                data = f.read().strip()
+
+            if data and data != INSTANCE_ID:
+                IS_ACTIVE_INSTANCE = False
+                return
+
+        with open(lock_file, "w") as f:
+            f.write(INSTANCE_ID)
+
+        IS_ACTIVE_INSTANCE = True
+
+    except Exception as e:
+        print("Lock error:", e)
+        IS_ACTIVE_INSTANCE = False
 
 FILES = {
     "memory": "memory.json",
@@ -162,10 +191,7 @@ def ask_ai(uid, text, system_override=None):
     )
 
     messages = [
-        {
-            "role": "system",
-            "content": system_prompt
-        }
+        {"role": "system", "content": system_prompt}
     ]
 
     if history:
@@ -182,9 +208,7 @@ def ask_ai(uid, text, system_override=None):
     try:
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_KEY}"
-            },
+            headers={"Authorization": f"Bearer {GROQ_KEY}"},
             json={
                 "model": "llama-3.1-8b-instant",
                 "messages": messages,
@@ -197,7 +221,6 @@ def ask_ai(uid, text, system_override=None):
             return f"AI {r.status_code}"
 
         data = r.json()
-
         return data["choices"][0]["message"]["content"]
 
     except Exception as e:
@@ -226,7 +249,6 @@ async def on_message(m):
     await bot.process_commands(m)
 
     ctx = await bot.get_context(m)
-
     if ctx.valid:
         return
 
@@ -234,14 +256,9 @@ async def on_message(m):
     data = sticky_messages.get(m.channel.id)
 
     if data:
-
         try:
-            old_msg = await m.channel.fetch_message(
-                data["sticky_message_id"]
-            )
-
+            old_msg = await m.channel.fetch_message(data["sticky_message_id"])
             await old_msg.delete()
-
         except:
             pass
 
@@ -251,22 +268,22 @@ async def on_message(m):
         )
 
         member = m.guild.get_member(data["author_id"])
-
         if member:
             embed.set_author(
                 name=str(member),
                 icon_url=member.display_avatar.url
             )
 
-        embed.set_footer(
-            text="📌 Sticky Message"
-        )
+        embed.set_footer(text="📌 Sticky Message")
 
-        new_msg = await m.channel.send(
-            embed=embed
-        )
-
+        new_msg = await m.channel.send(embed=embed)
         data["sticky_message_id"] = new_msg.id
+
+    # ================= INSTANCE GUARD (NEW FIX) =================
+    instance_guard()
+
+    if not IS_ACTIVE_INSTANCE:
+        return
 
     if not IS_LEADER:
         return
@@ -296,13 +313,8 @@ async def on_message(m):
 
         reply = ask_ai(uid, m.content)
 
-        log(m.guild, f"REPLY AI {m.author}")
-
         try:
-            await m.reply(
-                reply,
-                allowed_mentions=SAFE
-            )
+            await m.reply(reply, allowed_mentions=SAFE)
         except Exception as e:
             print(f"Reply error: {e}")
 
@@ -324,13 +336,8 @@ async def on_message(m):
 
         reply = ask_ai(uid, m.content)
 
-        log(m.guild, f"AI {m.author}")
-
         try:
-            await m.reply(
-                reply,
-                allowed_mentions=SAFE
-            )
+            await m.reply(reply, allowed_mentions=SAFE)
         except Exception as e:
             print(f"Reply error: {e}")
 
@@ -356,22 +363,12 @@ async def on_message(m):
             uid,
             m.content,
             system_override=(
-                "You are Yen. "
-                "You randomly jumped into a conversation. "
-                "React naturally, sarcastic, blunt, TikTok tone. "
-                "Keep it short. "
-                "Don't greet. "
-                "Be harsh about opinions but don't overdo insults."
+                "You are Yen. Randomly jumped in. Short sarcastic reply."
             )
         )
 
-        log(m.guild, f"RANDOM AI {m.author}")
-
         try:
-            await m.reply(
-                reply,
-                allowed_mentions=SAFE
-            )
+            await m.reply(reply, allowed_mentions=SAFE)
         except Exception as e:
             print(f"Random reply error: {e}")
 
@@ -381,6 +378,8 @@ async def on_ready():
     global IS_LEADER
 
     print(f"Logged in as {bot.user}")
+
+    instance_guard()
 
     ch = bot.get_channel(LOCK_CHANNEL_ID)
 
@@ -396,32 +395,23 @@ async def on_ready():
         except Exception as e:
             print(f"Startup channel error: {e}")
 
-    else:
-        print("Lock channel not found.")
-
 # ================= COMMANDS =================
 @bot.command()
 async def ignore(ctx, role: discord.Role):
-
     if ctx.author.id != CREATOR_ID:
         return await ctx.send("no")
 
     ignore_roles[str(ctx.guild.id)] = str(role.id)
-
     save(FILES["ignore"], ignore_roles)
-
     await ctx.send(f"ignored {role.name}")
 
 @bot.command()
 async def unignore(ctx):
-
     if ctx.author.id != CREATOR_ID:
         return await ctx.send("no")
 
     ignore_roles.pop(str(ctx.guild.id), None)
-
     save(FILES["ignore"], ignore_roles)
-
     await ctx.send("ignore cleared")
 
 @bot.command()
@@ -430,222 +420,10 @@ async def say(ctx, *, text):
 
 @bot.command()
 async def purge(ctx, amount: int):
-
     if not ctx.author.guild_permissions.manage_messages:
         return await ctx.send("no perms")
 
     await ctx.channel.purge(limit=amount + 1)
-
-# ================= SNIPE =================
-@bot.event
-async def on_message_delete(message):
-
-    if message.author.bot:
-        return
-
-    sniped_messages[message.channel.id] = {
-        "content": message.content,
-        "author": str(message.author)
-    }
-
-@bot.command()
-async def snipe(ctx):
-
-    data = sniped_messages.get(ctx.channel.id)
-
-    if not data:
-        return await ctx.send("nothing to snipe")
-
-    await ctx.send(
-        f"**{data['author']}** said:\n{data['content']}"
-    )
-
-# ================= URBAN =================
-@bot.command()
-async def urban(ctx, *, term):
-
-    try:
-        r = requests.get(
-            "https://api.urbandictionary.com/v0/define",
-            params={"term": term},
-            timeout=10
-        )
-
-        data = r.json()
-
-        if not data["list"]:
-            return await ctx.send("no definition found")
-
-        definition = data["list"][0]["definition"][:1500]
-
-        await ctx.send(
-            f"**{term}**:\n{definition}"
-        )
-
-    except Exception as e:
-        print(e)
-        await ctx.send("urban died 💀")
-
-# ================= TRANSLATE =================
-@bot.command()
-async def translate(ctx, lang, *, text):
-
-    languages = {
-        "english": "English",
-        "japanese": "Japanese",
-        "french": "French",
-        "spanish": "Spanish",
-        "german": "German",
-        "korean": "Korean",
-        "hindi": "Hindi"
-    }
-
-    target = languages.get(lang.lower())
-
-    if not target:
-        return await ctx.send("unknown language")
-
-    prompt = (
-        f"Translate this into {target}: {text}"
-    )
-
-    translated = ask_ai(
-        ctx.author.id,
-        prompt,
-        system_override=(
-            "You are a translator. "
-            "Only translate the text."
-        )
-    )
-
-    await ctx.send(translated)
-
-# ================= REMIND =================
-@bot.command()
-async def remind(ctx, seconds: int, *, reminder):
-
-    if seconds > 86400:
-        return await ctx.send("too long")
-
-    await ctx.send(
-        f"ok i'll remind you in {seconds} seconds"
-    )
-
-    await asyncio.sleep(seconds)
-
-    try:
-        await ctx.author.send(
-            f"Reminder: {reminder}"
-        )
-    except:
-        await ctx.send(
-            f"{ctx.author.mention} Reminder: {reminder}"
-        )
-
-# ================= STICKY =================
-@bot.command()
-async def sticky(ctx, arg=None):
-
-    if arg != "this":
-        return await ctx.send(
-            "reply to a message with: yen sticky this"
-        )
-
-    if not ctx.message.reference:
-        return await ctx.send(
-            "reply to a message first"
-        )
-
-    try:
-        replied = await ctx.channel.fetch_message(
-            ctx.message.reference.message_id
-        )
-
-    except:
-        return await ctx.send(
-            "couldn't find message"
-        )
-
-    old = sticky_messages.get(ctx.channel.id)
-
-    if old:
-
-        try:
-            old_msg = await ctx.channel.fetch_message(
-                old["sticky_message_id"]
-            )
-
-            await old_msg.delete()
-
-        except:
-            pass
-
-    embed = discord.Embed(
-        description=replied.content or "*no text*",
-        color=discord.Color.orange()
-    )
-
-    embed.set_author(
-        name=str(replied.author),
-        icon_url=replied.author.display_avatar.url
-    )
-
-    if replied.embeds:
-
-        first = replied.embeds[0]
-
-        if first.title:
-            embed.add_field(
-                name="Embed Title",
-                value=first.title,
-                inline=False
-            )
-
-        if first.description:
-            embed.add_field(
-                name="Embed Description",
-                value=first.description[:1000],
-                inline=False
-            )
-
-    embed.set_footer(
-        text="📌 Sticky Message"
-    )
-
-    sent = await ctx.send(embed=embed)
-
-    sticky_messages[ctx.channel.id] = {
-        "content": replied.content,
-        "author_id": replied.author.id,
-        "sticky_message_id": sent.id
-    }
-
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-
-@bot.command()
-async def unsticky(ctx):
-
-    data = sticky_messages.get(ctx.channel.id)
-
-    if not data:
-        return await ctx.send("no sticky here")
-
-    try:
-        msg = await ctx.channel.fetch_message(
-            data["sticky_message_id"]
-        )
-
-        await msg.delete()
-
-    except:
-        pass
-
-    sticky_messages.pop(ctx.channel.id, None)
-
-    await ctx.send("sticky removed")
 
 # ================= RUN =================
 if __name__ == "__main__":
