@@ -168,7 +168,7 @@ def ask_ai(uid, text, system_override=None):
     system_prompt = (
         system_override
         or
-        "You are Yen. Sarcastic, blunt, casual internet humor. Dry reactions. Short replies. Uses modern slang naturally. Swears.Confident attitude. Talks like a chronically online friend. Never mention TikTok, followers, streaming, or being an influencer."
+        "You are Yen. Sarcastic, blunt, casual internet humor. Dry reactions. Short replies. Uses modern slang naturally. Swears alot.Confident attitude. Talks like a chronically online friend. Never mention TikTok, followers, streaming, or being an influencer."
     )
 
     messages = [
@@ -320,7 +320,7 @@ async def on_message(m):
     # ================= RANDOM REPLY =================
     words = m.content.strip().split()
 
-    if len(words) >= 4 and random.random() < 0.03:
+    if len(words) >= 4 and random.random() < 0.08:
 
         if on_cooldown(m.author.id):
             return
@@ -338,7 +338,7 @@ async def on_message(m):
             m.content,
             system_override=(
                 "You are Yen. "
-                ""You are Yen. You randomly joined a conversation. React naturally with dry humor and blunt opinions. Swears.Keep replies short. Use casual modern slang naturally. Never act like an influencer or content creator. Never mention TikTok, followers, livestreams, edits, or social media fame."."
+                ""You are Yen. You randomly joined a conversation. React naturally with dry humor and blunt opinions. Swears alot.Keep replies short. Use casual modern slang naturally. Never act like an influencer or content creator. Never mention TikTok, followers, livestreams, edits, or social media fame."."
             )
         )
 
@@ -369,7 +369,7 @@ async def on_ready():
 
             IS_LEADER = True
 
-            await ch.send("sup")
+            await ch.send("im alive yo")
 
         except Exception as e:
             print(f"Startup channel error: {e}")
