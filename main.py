@@ -141,10 +141,9 @@ def log(g, text):
     )
 
     logs[gid] = logs[gid][-20:]
-
     save(FILES["logs"], logs)
 
-# ================= ROLE LOGIC =================
+# ================= ROLE SYSTEM =================
 def top_role_filtered(member):
     ignored = ignore_roles.get(str(member.guild.id))
 
@@ -232,9 +231,18 @@ def ask_ai(uid, text, system_override=None):
 sniped_messages = {}
 sticky_messages = {}
 
-# ================= 🔥 ONLY STICKY FIX (UNCHANGED ELSEWHERE) =================
+# ================= 🔥 ONLY STICKY FIX =================
+async def refresh_sticky(channel):
+    data = sticky_messages.get(channel.id)
+    if not data:
+        return
 
-def render_sticky(channel, data):
+    try:
+        old = await channel.fetch_message(data["sticky_message_id"])
+        await old.delete()
+    except:
+        pass
+
     embed = discord.Embed(
         description=data["content"] or "*no text*",
         color=discord.Color.orange()
@@ -249,21 +257,6 @@ def render_sticky(channel, data):
 
     embed.set_footer(text="📌 Sticky Message")
 
-    return embed
-
-async def refresh_sticky(channel):
-    data = sticky_messages.get(channel.id)
-    if not data:
-        return
-
-    try:
-        old = await channel.fetch_message(data["sticky_message_id"])
-        await old.delete()
-    except:
-        pass
-
-    embed = render_sticky(channel, data)
-
     try:
         new_msg = await channel.send(embed=embed)
         data["sticky_message_id"] = new_msg.id
@@ -276,23 +269,16 @@ async def on_message(m):
 
     global IS_LEADER
 
-    if not m:
-        return
-
-    if not m.guild:
-        return
-
-    if m.author.bot:
+    if not m or not m.guild or m.author.bot:
         return
 
     await bot.process_commands(m)
 
     ctx = await bot.get_context(m)
-
     if ctx.valid:
         return
 
-    # ================= 🔥 FIXED STICKY ONLY =================
+    # ================= STICKY FIX ONLY =================
     if m.channel.id in sticky_messages:
         await refresh_sticky(m.channel)
 
@@ -325,16 +311,11 @@ async def on_message(m):
         memory.setdefault(uid, [])
         memory[uid].append(m.content)
         memory[uid] = memory[uid][-6:]
-
         save(FILES["memory"], memory)
 
         reply = ask_ai(uid, m.content)
 
-        try:
-            await m.reply(reply, allowed_mentions=SAFE)
-        except Exception as e:
-            print("Reply error:", e)
-
+        await m.reply(reply, allowed_mentions=SAFE)
         return
 
     # ================= DIRECT =================
@@ -348,16 +329,11 @@ async def on_message(m):
         memory.setdefault(uid, [])
         memory[uid].append(m.content)
         memory[uid] = memory[uid][-6:]
-
         save(FILES["memory"], memory)
 
         reply = ask_ai(uid, m.content)
 
-        try:
-            await m.reply(reply, allowed_mentions=SAFE)
-        except Exception as e:
-            print("Reply error:", e)
-
+        await m.reply(reply, allowed_mentions=SAFE)
         return
 
     # ================= RANDOM =================
@@ -376,10 +352,7 @@ async def on_message(m):
             system_override="You randomly jumped into a convo. Be short."
         )
 
-        try:
-            await m.reply(reply, allowed_mentions=SAFE)
-        except Exception as e:
-            print("Random error:", e)
+        await m.reply(reply, allowed_mentions=SAFE)
 
 # ================= READY =================
 @bot.event
@@ -398,7 +371,8 @@ async def on_ready():
         IS_LEADER = True
         await ch.send("sup")
 
-# ================= COMMANDS (UNCHANGED) =================
+# ================= COMMANDS (ALL RESTORED) =================
+
 @bot.command()
 async def ignore(ctx, role: discord.Role):
     if ctx.author.id != CREATOR_ID:
@@ -428,17 +402,6 @@ async def purge(ctx, amount: int):
 
     await ctx.channel.purge(limit=amount + 1)
 
-# ================= SNIPE =================
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot:
-        return
-
-    sniped_messages[message.channel.id] = {
-        "content": message.content,
-        "author": str(message.author)
-    }
-
 @bot.command()
 async def snipe(ctx):
     data = sniped_messages.get(ctx.channel.id)
@@ -446,6 +409,70 @@ async def snipe(ctx):
         return await ctx.send("nothing to snipe")
 
     await ctx.send(f"**{data['author']}** said:\n{data['content']}")
+
+@bot.command()
+async def urban(ctx, *, term):
+    try:
+        r = requests.get(
+            "https://api.urbandictionary.com/v0/define",
+            params={"term": term},
+            timeout=10
+        )
+
+        data = r.json()
+
+        if not data["list"]:
+            return await ctx.send("no definition found")
+
+        definition = data["list"][0]["definition"][:1500]
+        await ctx.send(f"**{term}**:\n{definition}")
+
+    except Exception as e:
+        print(e)
+        await ctx.send("urban died 💀")
+
+@bot.command()
+async def translate(ctx, lang, *, text):
+
+    languages = {
+        "english": "English",
+        "japanese": "Japanese",
+        "french": "French",
+        "spanish": "Spanish",
+        "german": "German",
+        "korean": "Korean",
+        "hindi": "Hindi"
+    }
+
+    target = languages.get(lang.lower())
+
+    if not target:
+        return await ctx.send("unknown language")
+
+    prompt = f"Translate this into {target}: {text}"
+
+    translated = ask_ai(
+        ctx.author.id,
+        prompt,
+        system_override="You are a translator. Only translate."
+    )
+
+    await ctx.send(translated)
+
+@bot.command()
+async def remind(ctx, seconds: int, *, reminder):
+
+    if seconds > 86400:
+        return await ctx.send("too long")
+
+    await ctx.send(f"ok i'll remind you in {seconds} seconds")
+
+    await asyncio.sleep(seconds)
+
+    try:
+        await ctx.author.send(f"Reminder: {reminder}")
+    except:
+        await ctx.send(f"{ctx.author.mention} Reminder: {reminder}")
 
 # ================= RUN =================
 if __name__ == "__main__":
