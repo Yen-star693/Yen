@@ -23,7 +23,7 @@ def run_web():
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = Thread(target=run_web)
+    t = Thread(target=run_web, daemon=True)
     t.start()
 
 # ================= LOGGING =================
@@ -221,13 +221,10 @@ async def on_message(m):
     # Always process commands first
     await bot.process_commands(m)
 
-    # Prevent errors if bot.user is None
-    if bot.user and (
-        m.content.startswith("yen ")
-        or
-        m.content.startswith(f"<@{bot.user.id}>")
-    ):
-        return
+    ctx = await bot.get_context(m)
+
+if ctx.valid:
+    return
 
     if not IS_LEADER:
         return
