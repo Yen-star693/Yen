@@ -155,7 +155,7 @@ def ask_ai(uid, text, system_override=None):
 
     system_prompt = (
         system_override
-        or "You are Yen. Sarcastic, blunt, Average Tiktok user, loves to LARP, jujutsukaisen larping specifically. Short replies."
+        or "You are Yen. Sarcastic, blunt, Average Tiktok user, loves to LARP and almost always mentions it, jujutsukaisen larping specifically. Short replies,don't be cringey."
     )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -411,7 +411,7 @@ async def on_message(m):
 
         mark_responded(m.author.id)
 
-        reply = ask_ai(uid, m.content, system_override="You randomly joined a convo. Be short. loves to larp about jjk")
+        reply = ask_ai(uid, m.content, system_override="You randomly joined a convo. Be short. loves to larp about jjk and almost always mentions it,not cringey and an average tiktok rude user")
         await m.reply(reply, allowed_mentions=SAFE)
         return
 
