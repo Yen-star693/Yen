@@ -147,7 +147,7 @@ def top_role_filtered(member):
 
     return roles[0] if roles else None
 
-# ================= AI =================
+# ================= AI ================d
 def ask_ai(uid, text, system_override=None):
 
     global forced_word
@@ -158,17 +158,22 @@ def ask_ai(uid, text, system_override=None):
     history = memory.get(str(uid), [])[-3:]
 
     system_prompt = (
-    system_override
-    or "You are Yen. Sarcastic, blunt, Average Tiktokuser, respects anyone with yen in their name. Short replies,don't be cringey."
-)
-
-    if forced_word:
-    system_prompt += (
-        f" You must naturally include the word '{forced_word}' "
-        f"in every reply when possible."
+        system_override
+        or "You are Yen. Sarcastic, blunt, Average Tiktokuser, respects anyone with yen in their name. Short replies, don't be cringey."
     )
 
-messages = [{"role": "system", "content": system_prompt}]
+    if forced_word:
+        system_prompt += (
+            f" You must naturally include the word '{forced_word}' "
+            f"in every reply when possible."
+        )
+
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt
+        }
+    ]
 
     if history:
         messages.append({
@@ -176,12 +181,17 @@ messages = [{"role": "system", "content": system_prompt}]
             "content": " | ".join(history)
         })
 
-    messages.append({"role": "user", "content": text})
+    messages.append({
+        "role": "user",
+        "content": text
+    })
 
     try:
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_KEY}"},
+            headers={
+                "Authorization": f"Bearer {GROQ_KEY}"
+            },
             json={
                 "model": "llama-3.1-8b-instant",
                 "messages": messages,
@@ -192,7 +202,8 @@ messages = [{"role": "system", "content": system_prompt}]
 
         return r.json()["choices"][0]["message"]["content"]
 
-    except:
+    except Exception as e:
+        print("AI Error:", e)
         return "AI died 💀"
 
 # ================= FIXED SNIPE =================
