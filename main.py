@@ -158,18 +158,17 @@ def ask_ai(uid, text, system_override=None):
     history = memory.get(str(uid), [])[-3:]
 
     system_prompt = (
-        system_prompt 
     system_override
     or "You are Yen. Sarcastic, blunt, Average Tiktokuser, respects anyone with yen in their name. Short replies,don't be cringey."
 )
 
-if forced_word:
+    if forced_word:
     system_prompt += (
         f" You must naturally include the word '{forced_word}' "
         f"in every reply when possible."
     )
 
-    messages = [{"role": "system", "content": system_prompt}]
+messages = [{"role": "system", "content": system_prompt}]
 
     if history:
         messages.append({
