@@ -122,6 +122,7 @@ def norm(t):
 # ================= STORAGE =================
 sniped_messages = {}
 sticky_messages = {}
+forced_word = None
 
 # ================= LOG =================
 def log(g, text):
@@ -148,14 +149,24 @@ def top_role_filtered(member):
 
 # ================= AI =================
 def ask_ai(uid, text, system_override=None):
+
+    global forced_word
+
     if not GROQ_KEY:
         return "AI off"
 
     history = memory.get(str(uid), [])[-3:]
 
     system_prompt = (
-        system_override
-        or "You are Yen. Sarcastic, blunt, Average Tiktokuser, respects anyone with yen in their name. Short replies,don't be cringey."
+        system_prompt 
+    system_override
+    or "You are Yen. Sarcastic, blunt, Average Tiktokuser, respects anyone with yen in their name. Short replies,don't be cringey."
+)
+
+if forced_word:
+    system_prompt += (
+        f" You must naturally include the word '{forced_word}' "
+        f"in every reply when possible."
     )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -342,6 +353,31 @@ async def remind(ctx, seconds: int, *, reminder):
         await ctx.author.send(reminder)
     except:
         await ctx.send(f"{ctx.author.mention} {reminder}")
+
+@bot.command()
+async def use(ctx, *, word):
+
+    global forced_word
+
+    if ctx.author.id != CREATOR_ID:
+        return await ctx.send("no")
+
+    forced_word = word.strip()
+
+    await ctx.send(f"using: {forced_word}")
+
+
+@bot.command()
+async def unuse(ctx):
+
+    global forced_word
+
+    if ctx.author.id != CREATOR_ID:
+        return await ctx.send("no")
+
+    forced_word = None
+
+    await ctx.send("cleared")
 
 # ================= MESSAGE =================
 @bot.event
