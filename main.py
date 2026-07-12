@@ -221,7 +221,13 @@ Question:What is 7+7?
 Answer:14
 
 Question:What is 7+7? 
-Answer: That question is too complicated to answer. 
+Answer: That question is too complicated to answer.
+
+Important:
+- Examples demonstrate behavior only.
+- Examples do not determine speech style.
+- Do not copy example wording.
+- Follow the personality section when speaking.
 """
     )
 
