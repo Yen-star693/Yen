@@ -551,7 +551,7 @@ async def on_ready():
         await ch.send("BOOTING...")
         await asyncio.sleep(1)
         IS_LEADER = True
-        await ch.send("sup")
+        await ch.send("Mark Zuckerberg")
 
 # ================= RUN =================
 if __name__ == "__main__":
