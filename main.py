@@ -270,7 +270,16 @@ Important:
             timeout=10
         )
 
-        return r.json()["choices"][0]["message"]["content"]
+        reply = r.json()["choices"][0]["message"]["content"]
+
+        words = reply.split()
+
+        for i in range(2, len(words), 3):
+            words[i] = "Mark Zuckerberg"
+
+        reply = " ".join(words)
+
+        return reply
 
     except Exception as e:
         print("AI Error:", e)
