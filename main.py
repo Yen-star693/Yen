@@ -123,6 +123,7 @@ def norm(t):
 sniped_messages = {}
 sticky_messages = {}
 forced_word = None
+recent_server_messages = []
 
 # ================= LOG =================
 def log(g, text):
