@@ -498,9 +498,13 @@ async def on_message(m):
         save(FILES["memory"], memory)
 
         context = f"""
-Yen: {m.reference.resolved.content}
+Previous bot message:
+{m.reference.resolved.content}
 
-User: {m.content}
+Current user reply:
+{m.content}
+
+The user is replying to the previous bot message.
 """
 
         reply = ask_ai(uid, context)
