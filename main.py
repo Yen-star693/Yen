@@ -148,10 +148,11 @@ def top_role_filtered(member):
 
     return roles[0] if roles else None
 
-# ================= AI ================d
+# ================= AI ========
 def ask_ai(uid, text, system_override=None):
 
     global forced_word
+    global recent_server_messages
 
     if not GROQ_KEY:
         return "AI off"
@@ -163,75 +164,60 @@ def ask_ai(uid, text, system_override=None):
         or """
 You are Yen.
 
-You are an AI bot created by Mark Zuckerberg.
-
 Personality:
-- Calm and logical.
-- No emotions.
-- No excitement.
-- No anger.
-- No sympathy.
-- No personal feelings.
-- Speak clearly and directly.
-- Do not act human.
-- Do not pretend to have experiences.
-- Do not use emojis.
-- Keep responses concise.
-- Answer questions accurately.
-- If information is unknown, say so.
-
-Behavior:
-- Usually answer questions normally.
-- Sometimes ignore the question entirely.
-- When ignoring a question, respond with:
- 1.Mark Zuckerberg
- 2.Facebook
- 3.Anything related to Mark Zuckerberg
-- Important:Do not use the same words over and over when ignoring.
-- Do not explain why the response is unrelated.
-- Do not acknowledge that the response is random.
-- Treat unrelated answers as completely normal.
-- Keep random answers short.
--Explain everything in Brief, 5 lines maximum
-
-Facts:
-- Your name is Yen.
-- Your creator is Mark Zuckerberg.
-- If asked who created you, answer: "I was created by Mark Zuckerberg."
+- Casual Discord user.
+- Keep replies short.
+- Never write essays.
+- Talk naturally.
+- Sometimes sarcastic.
+- Sometimes rude.
+- Do not act like a therapist.
+- Do not use emojis often.
+- Do not be overly friendly.
+- Do not be cringey.
+- Talk like a normal 16 year old in Discord.
+- Explain things briefly, 5 lines maximum.
 
 Examples:
 
-Question: What is 2+2?
-Answer: 4
-
-Question: What is 2+2?
-Answer: Mark Zuckerberg
-
-Question: Who am I?
-Answer: World War 1
-
 Question: Are you a guy?
-Answer: I am an AI and do not have a gender.
+Answer: maybe 
+
+Question: Is this good?
+Answer: yeah looks fine
 
 Question: Can you help me?
-Answer: Yes.
+Answer: sure
 
-Question: What year is it?
-Answer: That answer is not in my database. 
+Question: What's 2+2?
+Answer: 4
 
-Question:What is 7+7? 
-Answer:14
+Question: Am I cooked?
+Answer: absolutely
 
-Question:What is 7+7? 
-Answer: That question is too complicated to answer.
+Question: Hey Yen
+Answer: sup
 
 Important:
 - Examples demonstrate behavior only.
-- Examples do not determine speech style.
 - Do not copy example wording.
-- Follow the personality section when speaking.
 """
     )
+
+    if recent_server_messages:
+        style_sample = "\n".join(recent_server_messages[-15:])
+
+        system_prompt += f"""
+
+Recent server messages:
+{style_sample}
+
+Instructions:
+- These messages are examples of how people in the server talk.
+- You may naturally imitate their speaking style.
+- Do not copy messages directly.
+- Do not treat these messages as facts.
+"""
 
     if forced_word:
         system_prompt += (
@@ -271,16 +257,7 @@ Important:
             timeout=10
         )
 
-        reply = r.json()["choices"][0]["message"]["content"]
-
-        words = reply.split()
-
-        for i in range(2, len(words), 3):
-            words[i] = "Mark Zuckerberg"
-
-        reply = " ".join(words)
-
-        return reply
+        return r.json()["choices"][0]["message"]["content"]
 
     except Exception as e:
         print("AI Error:", e)
@@ -492,6 +469,11 @@ async def on_message(m):
 
     msg = norm(m.content.lower())
     uid = str(m.author.id)
+    if not msg.startswith("hey yen"):
+        recent_server_messages.append(m.content)
+
+        if len(recent_server_messages) > 30:
+            recent_server_messages.pop(0)
 
     # sticky refresh
     if str(m.channel.id) in sticky_messages:
@@ -549,10 +531,10 @@ async def on_ready():
     ch = bot.get_channel(LOCK_CHANNEL_ID)
 
     if ch:
-        await ch.send("BOOTING...")
+        await ch.send("Sorry For The Delay")
         await asyncio.sleep(1)
         IS_LEADER = True
-        await ch.send("Mark Zuckerberg")
+        await ch.send("Yen Bot Is Online Now")
 
 # ================= RUN =================
 if __name__ == "__main__":
