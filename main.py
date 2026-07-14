@@ -497,7 +497,13 @@ async def on_message(m):
         memory[uid] = memory[uid][-6:]
         save(FILES["memory"], memory)
 
-        reply = ask_ai(uid, m.content)
+        context = f"""
+Yen: {m.reference.resolved.content}
+
+User: {m.content}
+"""
+
+        reply = ask_ai(uid, context)
         await m.reply(reply, allowed_mentions=SAFE)
         return
 
